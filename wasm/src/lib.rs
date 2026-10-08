@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tracerva::{Options, Paint, RefineOptions, refine};
+use tracerva::{GrayscaleOptions, Options, Paint, RefineOptions, refine, refine_grayscale};
 use wasm_bindgen::prelude::*;
 
 #[derive(Deserialize)]
@@ -13,6 +13,16 @@ struct Settings {
     outline: bool,
     #[serde(default)]
     palette: Vec<[u8; 3]>,
+    #[serde(default)]
+    grayscale: Option<GraySettings>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GraySettings {
+    levels: usize,
+    denoise: u32,
+    min_region_area: usize,
 }
 
 fn convert(rgba: &[u8], width: u32, height: u32, settings: &str) -> Result<String, String> {
@@ -23,26 +33,37 @@ fn convert(rgba: &[u8], width: u32, height: u32, settings: &str) -> Result<Strin
     let settings: Settings = serde_json::from_str(settings).map_err(|e| e.to_string())?;
     let image =
         image::RgbaImage::from_raw(width, height, rgba.to_vec()).ok_or("Invalid RGBA buffer")?;
-    let result = refine(
-        &image,
-        &Options {
-            colors: settings.colors,
-            ..Default::default()
+    let options = Options {
+        colors: settings.colors,
+        ..Default::default()
+    };
+    let refine_options = RefineOptions {
+        smooth: settings.smooth,
+        geometry: settings.geometry,
+        merge_distance: settings.merge_distance,
+        palette: settings.palette,
+        background: settings.background,
+        paint: if settings.outline {
+            Paint::Outline
+        } else {
+            Paint::Flat
         },
-        &RefineOptions {
-            smooth: settings.smooth,
-            geometry: settings.geometry,
-            merge_distance: settings.merge_distance,
-            palette: settings.palette,
-            background: settings.background,
-            paint: if settings.outline {
-                Paint::Outline
-            } else {
-                Paint::Flat
+        ..Default::default()
+    };
+    let result = if let Some(gray) = settings.grayscale {
+        refine_grayscale(
+            &image,
+            &options,
+            &refine_options,
+            &GrayscaleOptions {
+                levels: gray.levels,
+                denoise: gray.denoise,
+                min_region_area: gray.min_region_area,
             },
-            ..Default::default()
-        },
-    )
+        )
+    } else {
+        refine(&image, &options, &refine_options)
+    }
     .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({
         "svg": result.svg,
@@ -70,6 +91,17 @@ mod tests {
         assert!(convert(&[], u32::MAX, u32::MAX, SETTINGS).is_err());
         assert!(convert(&[0; 3], 1, 1, SETTINGS).is_err());
         assert!(convert(&[], 0, 0, SETTINGS).is_err());
+    }
+
+    #[test]
+    fn grayscale_bridge_returns_original_color_and_validates_parameters() {
+        let mut settings: serde_json::Value = serde_json::from_str(SETTINGS).unwrap();
+        settings["grayscale"] = serde_json::json!({"levels":8,"denoise":0,"min_region_area":0});
+        let output = convert(&[183, 0, 0, 255], 1, 1, &settings.to_string()).unwrap();
+        let output: serde_json::Value = serde_json::from_str(&output).unwrap();
+        assert!(output["svg"].as_str().unwrap().contains("#b70000"));
+        settings["grayscale"]["levels"] = 65.into();
+        assert!(convert(&[183, 0, 0, 255], 1, 1, &settings.to_string()).is_err());
     }
 
     #[test]

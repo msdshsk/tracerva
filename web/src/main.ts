@@ -190,6 +190,9 @@ controls.addEventListener("input", () => {
 function updateColorMode() {
   const mode = el<HTMLSelectElement>("color-mode").value;
   el("palette-label").hidden = mode !== "palette";
+  el("gray-controls").hidden = mode !== "gray";
+  for (const input of el("gray-controls").querySelectorAll("input"))
+    input.disabled = mode !== "gray";
   el<HTMLInputElement>("colors").disabled = mode !== "auto";
   el<HTMLInputElement>("merge").disabled = mode !== "auto";
 }
@@ -237,6 +240,14 @@ el<HTMLFormElement>("settings").addEventListener("submit", (e) => {
     merge_distance:
       mode === "auto" ? Number(el<HTMLInputElement>("merge").value) : 0,
     palette,
+    grayscale:
+      mode === "gray"
+        ? {
+            levels: Number(el<HTMLInputElement>("gray-levels").value),
+            denoise: Number(el<HTMLInputElement>("gray-denoise").value),
+            min_region_area: Number(el<HTMLInputElement>("gray-area").value),
+          }
+        : undefined,
     geometry: el<HTMLInputElement>("geometry").checked,
     background: el<HTMLInputElement>("remove-bg").checked
       ? ([1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [

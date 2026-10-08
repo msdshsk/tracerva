@@ -57,6 +57,7 @@
                   <option value="auto">自動減色</option>
                   <option value="mono">白黒の題字・ロゴ</option>
                   <option value="palette">指定パレット</option>
+                  <option value="gray">グレーで形 → 元の色（実験）</option>
                 </select></label
               >
               <label id="palette-label" hidden
@@ -67,6 +68,44 @@
                   value="#ffffff,#1b6658,#dd9850"
                   aria-label="指定パレット（カンマ区切りの16進色）"
               /></label>
+              <div id="gray-controls" hidden>
+                <label
+                  >グレーの階調数
+                  <input
+                    id="gray-levels"
+                    type="number"
+                    min="2"
+                    max="64"
+                    value="8"
+                    required
+                    disabled
+                /></label>
+                <label
+                  >ノイズ除去半径（px）
+                  <input
+                    id="gray-denoise"
+                    type="number"
+                    min="0"
+                    max="3"
+                    value="2"
+                    required
+                    disabled
+                /></label>
+                <label
+                  >微小領域の整理（画素）
+                  <input
+                    id="gray-area"
+                    type="number"
+                    min="0"
+                    max="1024"
+                    value="16"
+                    required
+                    disabled
+                /></label>
+                <p class="hint">
+                  明るさで形を分け、領域ごとに元の色を戻します。階調数は出力色数ではありません。同じ明るさの色は混ざる場合があります。ノイズ除去・領域整理を強めると小さな模様も消えます。
+                </p>
+              </div>
               <label
                 >色数
                 <input

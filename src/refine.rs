@@ -77,7 +77,11 @@ fn distance2(a: [u8; 3], b: [u8; 3]) -> f64 {
         .map(|c| (f64::from(a[c]) - f64::from(b[c])).powi(2))
         .sum()
 }
-fn validate(img: &RgbaImage, options: &Options, refine: &RefineOptions) -> Result<(), Error> {
+pub(crate) fn validate(
+    img: &RgbaImage,
+    options: &Options,
+    refine: &RefineOptions,
+) -> Result<(), Error> {
     if img.width() == 0
         || img.height() == 0
         || u64::from(img.width()) * u64::from(img.height()) > 16_000_000
@@ -256,7 +260,7 @@ fn prepare(
     Ok((indexed, omit, before))
 }
 
-fn merge_small_regions(indexed: &mut IndexedImage, omit: &[bool], max_area: usize) {
+pub(crate) fn merge_small_regions(indexed: &mut IndexedImage, omit: &[bool], max_area: usize) {
     let w = indexed.width as usize;
     let h = indexed.height as usize;
     let neighbors = |p: usize| {
@@ -334,23 +338,34 @@ pub fn refine(
     settings: &RefineOptions,
 ) -> Result<RefinedSvg, Error> {
     let (indexed, omit, before) = prepare(img, options, settings)?;
+    render_indexed(&indexed, &omit, before, options, settings, None)
+}
+
+pub(crate) fn render_indexed(
+    indexed: &IndexedImage,
+    omit: &[bool],
+    before: usize,
+    options: &Options,
+    settings: &RefineOptions,
+    original: Option<&image::RgbImage>,
+) -> Result<RefinedSvg, Error> {
     let smooth = if settings.geometry {
         Some(crate::smooth::SmoothPaths::with_geometry(
-            &indexed,
+            indexed,
             settings.smooth,
             true,
             settings.geometry_tolerance,
             settings.corner_extension,
         ))
     } else if settings.smooth > 0.0 {
-        Some(crate::smooth::SmoothPaths::new(&indexed, settings.smooth))
+        Some(crate::smooth::SmoothPaths::new(indexed, settings.smooth))
     } else {
         None
     };
     let w = indexed.width as usize;
     let h = indexed.height as usize;
     let mut membership = vec![usize::MAX; w * h];
-    let mut used_colors = vec![false; indexed.palette.len()];
+    let mut used_colors = std::collections::BTreeSet::new();
     let mut stats = RefineStats {
         geometry_circles: smooth.as_ref().map_or(0, |s| s.circles),
         geometry_polygons: smooth.as_ref().map_or(0, |s| s.polygons),
@@ -375,9 +390,29 @@ pub fn refine(
         let id = stats.paths;
         membership[seed] = id;
         let mut stack = vec![seed];
+        let mut all_samples = [[0u32; 256]; 3];
+        let mut inner_samples = [[0u32; 256]; 3];
+        let mut inner_count = 0;
         let (mut left, mut right, mut top, mut bottom) = (seed % w, seed % w, seed / w, seed / w);
         while let Some(p) = stack.pop() {
             let (x, y) = (p % w, p / w);
+            if let Some(original) = original {
+                let color = original.get_pixel(x as u32, y as u32).0;
+                let interior = x > 0
+                    && x + 1 < w
+                    && y > 0
+                    && y + 1 < h
+                    && [p - 1, p + 1, p - w, p + w]
+                        .iter()
+                        .all(|&n| indexed.labels[n] as usize == label);
+                for c in 0..3 {
+                    all_samples[c][color[c] as usize] += 1;
+                    if interior {
+                        inner_samples[c][color[c] as usize] += 1;
+                    }
+                }
+                inner_count += usize::from(interior);
+            }
             left = left.min(x);
             right = right.max(x);
             top = top.min(y);
@@ -413,8 +448,27 @@ pub fn refine(
         }
         let rings = contours(&local, 1);
         stats.contours += rings.len();
-        used_colors[label] = true;
-        let color = indexed.palette[label];
+        let color = if original.is_some() {
+            let samples = if inner_count > 0 {
+                &inner_samples
+            } else {
+                &all_samples
+            };
+            std::array::from_fn(|c| {
+                let half = samples[c].iter().sum::<u32>().div_ceil(2);
+                let mut sum = 0;
+                samples[c]
+                    .iter()
+                    .position(|&n| {
+                        sum += n;
+                        sum >= half
+                    })
+                    .unwrap() as u8
+            })
+        } else {
+            indexed.palette[label]
+        };
+        used_colors.insert(color);
         write!(svg,"<path id=\"region-{:05}\" data-source-fill=\"#{:02x}{:02x}{:02x}\" fill-rule=\"evenodd\" ",id+1,color[0],color[1],color[2]).unwrap();
         match settings.paint {
             Paint::Flat => write!(
@@ -455,7 +509,7 @@ pub fn refine(
         svg.push_str("\"/>\n");
         stats.paths += 1;
     }
-    stats.palette_after = used_colors.into_iter().filter(|v| *v).count();
+    stats.palette_after = used_colors.len();
     svg.push_str("</svg>\n");
     Ok(RefinedSvg { svg, stats })
 }

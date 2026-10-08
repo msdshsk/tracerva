@@ -6,8 +6,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 mod geometry;
+mod grayscale;
 mod refine;
 mod smooth;
+pub use grayscale::{GrayscaleOptions, refine_grayscale};
 pub use refine::{Paint, RefineOptions, RefineStats, RefinedSvg, refine};
 
 #[derive(Clone, Debug)]

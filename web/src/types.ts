@@ -6,6 +6,7 @@ export interface Settings {
   background: [number, number, number] | null;
   outline: boolean;
   palette: [number, number, number][];
+  grayscale?: { levels: number; denoise: number; min_region_area: number };
 }
 export interface TraceRequest {
   rgba: Uint8Array;
