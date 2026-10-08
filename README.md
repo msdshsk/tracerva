@@ -85,19 +85,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 コアライブラリはファイルI/Oや外部プロセスを使用しません。
 `wasm32-unknown-unknown` 向けのコンパイルチェックを実施しています。
-JavaScript向けのバインディング、配布用WASMパッケージ、ブラウザでの実行検証はまだありません。
+`wasm/` にJavaScript向けのバインディング、`web/` にTypeScriptのブラウザデモがあります。
+デモはWeb Workerで変換し、画像の読み込み・比較・SVG保存をブラウザ内で完結します。
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo check --lib --target wasm32-unknown-unknown --locked
 ```
 
+## Webデモ
+
+Node.js 24、Rust stable、wasm-pack 0.15.0を使用します。
+
+```sh
+rustup target add wasm32-unknown-unknown
+cargo install wasm-pack --version 0.15.0 --locked
+cd web
+npm ci
+npm run dev
+```
+
+本番用は `npm run build`、ローカル確認は `npm run preview` です。
+ビルド時にRustからWASMとJavaScriptの呼び出し口を生成し、TypeScriptの型チェック後に
+`web/dist/` へ静的サイトを出力します。生成物はGit管理しません。
+
+デモでは画像のドラッグ＆ドロップ、自動減色・白黒・指定パレットの切り替え、
+色数・平滑化・幾何補正・背景省略・塗りなし出力の設定、
+倍率とスクロールを揃えた比較、SVG保存ができます。サンプル画像はブラウザ内で描画します。
+入力はPNG・JPEG・WebP、最大1,600万画素・30MBです。端末の性能によって処理時間やメモリ使用量が変わります。
+
+### GitHub Pages
+
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) で、PR時にRustのテスト・静的検査と
+WASM・TypeScriptのビルドを実行します。`main` へのpush時は同じ検証後、GitHub Pagesへ自動デプロイします。
+Actions画面からの手動実行にも対応します。
+
+リポジトリの **Settings → Pages → Build and deployment → Source** を **GitHub Actions** に設定してください。
+このリポジトリの公開先は `https://msdshsk.github.io/tracerva/` です。
+ビルドは相対URLを使うため、リポジトリ名のサブパスでも配信できます。
+Pagesへの書き込み権限はデプロイジョブだけに付与し、PRではデプロイしません。
+
 ## 開発
 
 ```sh
-cargo test --locked
-cargo clippy --all-targets --locked -- -D warnings
-cargo fmt --check
+cargo test --workspace --locked
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo fmt --all --check
 ```
 
 画像生成素材・比較用の他社エンジン・比較レポートはこのリポジトリに含めていません。

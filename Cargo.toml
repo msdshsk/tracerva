@@ -13,3 +13,7 @@ include = ["src/**", "examples/**", "README.md", "Cargo.toml", "Cargo.lock", "LI
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 thiserror = "2"
+
+[workspace]
+members = ["wasm"]
+resolver = "3"

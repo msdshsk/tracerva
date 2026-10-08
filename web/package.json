@@ -1,0 +1,17 @@
+{
+  "name": "tracerva-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT OR Apache-2.0",
+  "scripts": {
+    "wasm": "wasm-pack build ../wasm --target web --out-dir ../web/src/wasm --release --no-opt --locked",
+    "dev": "npm run wasm && vite --host 127.0.0.1",
+    "build": "npm run wasm && tsc --noEmit && vite build && node scripts/licenses.mjs",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "vite": "8.3.3"
+  }
+}

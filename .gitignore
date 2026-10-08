@@ -9,3 +9,7 @@ Thumbs.db
 /.vscode/
 /.codex/
 /output/
+/web/node_modules/
+/web/dist/
+/web/src/wasm/
+/.playwright-cli/
